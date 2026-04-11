@@ -1,0 +1,207 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Socratis Backend Console</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-sA+e2LGG3CkPC4qMyV+7U7C2WxZmf0RduCMsZ/HXXIQK5vCk1vZ1tcHTfb3e8Dqg3OjaxAgFD070pP0b5p3r0w==" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-vA3zNiq6pP7FpC18JNpDutLCRa14Q6gttxyPjdvVSxGInxjeRGna43EIBgzHuLlHotE5Z7V6LMM4SpP6eS0ZGA==" crossorigin=""></script>
+  <style>
+    :root { --bg:#0b1221; --panel:#111a2f; --border:#1f2a44; --text:#e8edf7; --accent:#2dd4bf; --muted:#a8b7d4; }
+    *{box-sizing:border-box;} body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:32px;} h1,h2,h3{margin:0 0 12px;} a{color:#6dd3ff;} .pill{display:inline-block;background:var(--panel);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:999px;font-size:12px;} .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px;box-shadow:0 10px 25px rgba(0,0,0,0.25);} .row{display:flex;gap:12px;flex-wrap:wrap;} label{font-size:13px;color:var(--muted);} select,input[type=text]{padding:10px;border-radius:10px;border:1px solid var(--border);background:#0d1426;color:var(--text);} button{background:var(--accent);border:none;color:#062026;font-weight:700;padding:10px 16px;border-radius:10px;cursor:pointer;transition:transform 0.12s ease, box-shadow 0.12s ease;} button:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,0.3);} #map{width:100%;height:460px;border-radius:12px;border:1px solid var(--border);overflow:hidden;} pre{background:#0d1426;border:1px solid var(--border);border-radius:10px;padding:12px;overflow:auto;} .stat{min-width:130px;} .error{color:#ff8b8b;font-weight:700;} .ok{color:#8ef7c1;font-weight:700;}
+  </style>
+</head>
+<body>
+  <h1>🚦 Socratis Backend</h1>
+  <p class="pill">Listening on <strong>http://127.0.0.1:5000</strong></p>
+  <p>If the frontend looks blank or buttons fail, ensure this page is served from <strong>127.0.0.1:5000</strong> and the Python server window is running.</p>
+
+  <div class="card">
+    <h2>Quick Links</h2>
+    <div class="row">
+      <a href="/api/weather/delhi" target="_blank">Weather (Delhi)</a>
+      <a href="/api/traffic" target="_blank">Traffic Snapshot</a>
+      <a href="/api/analytics/centrality" target="_blank">Analytics: Centrality</a>
+      <a href="/api/analytics/tsp" target="_blank">Analytics: TSP</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Route Planner</h2>
+    <div class="row" style="align-items:flex-end;">
+      <div>
+        <label for="start">Start</label><br>
+        <select id="start"></select>
+      </div>
+      <div>
+        <label for="end">Destination</label><br>
+        <select id="end"></select>
+      </div>
+      <div>
+        <label for="mode">Mode</label><br>
+        <select id="mode">
+          <option value="normal">normal</option>
+          <option value="shortest">shortest</option>
+          <option value="emergency">emergency</option>
+          <option value="peak">peak</option>
+        </select>
+      </div>
+      <div>
+        <label><input type="checkbox" id="avoidTolls"> avoid toll expressways</label><br>
+        <label><input type="checkbox" id="avoidHighways"> avoid highways</label>
+      </div>
+      <button id="plan">Calculate</button>
+      <span id="status" class="pill" style="min-width:180px;">Idle</span>
+    </div>
+    <div class="row" style="margin-top:12px;">
+      <div class="stat">Distance: <span id="statDistance">-</span> km</div>
+      <div class="stat">ETA: <span id="statEta">-</span> mins</div>
+      <div class="stat">Cost: ₹<span id="statCost">-</span></div>
+      <div class="stat">CO₂: <span id="statCO2">-</span> kg</div>
+    </div>
+    <div id="map" style="margin-top:14px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Traffic Layer</h2>
+    <button id="refreshTraffic">Refresh Traffic</button>
+    <span id="trafficMsg" class="pill">Waiting</span>
+    <pre id="trafficList" style="margin-top:10px;max-height:200px;"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Weather Quick Check</h2>
+    <div class="row" style="align-items:flex-end;">
+      <div>
+        <label for="city">City ID</label><br>
+        <input id="city" type="text" value="delhi" />
+      </div>
+      <button id="getWeather">Get Weather</button>
+    </div>
+    <pre id="weatherOut">(click Get Weather)</pre>
+  </div>
+
+<script>
+let map, routeLayer, startMarker, endMarker, trafficLayer;
+
+function setStatus(text, ok=true){
+  const s=document.getElementById('status');
+  s.textContent=text;
+  s.className='pill ' + (ok ? 'ok' : 'error');
+}
+
+function initMap(){
+  map=L.map('map').setView([22.5,78.9],5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:18, attribution:'© OpenStreetMap'}).addTo(map);
+}
+
+async function loadCities(){
+  const res=await fetch('/api/cities');
+  if(!res.ok) throw new Error('Cannot load cities');
+  const cities=await res.json();
+  cities.sort((a,b)=>a.name.localeCompare(b.name));
+  const startSel=document.getElementById('start');
+  const endSel=document.getElementById('end');
+  for(const c of cities){
+    const opt=document.createElement('option'); opt.value=c.id; opt.textContent=c.name;
+    const opt2=opt.cloneNode(true);
+    startSel.appendChild(opt);
+    endSel.appendChild(opt2);
+  }
+  startSel.value='delhi';
+  endSel.value='mumbai';
+}
+
+function clearRoute(){
+  if(routeLayer){ map.removeLayer(routeLayer); }
+  if(startMarker){ map.removeLayer(startMarker); }
+  if(endMarker){ map.removeLayer(endMarker); }
+}
+
+function drawRoute(coords){
+  clearRoute();
+  const latlngs=coords.map(p=>[p.lat,p.lng]);
+  routeLayer=L.polyline(latlngs,{color:'#2dd4bf',weight:5}).addTo(map);
+  startMarker=L.marker(latlngs[0]).addTo(map).bindPopup('Start');
+  endMarker=L.marker(latlngs[latlngs.length-1]).addTo(map).bindPopup('Destination');
+  map.fitBounds(routeLayer.getBounds(),{padding:[30,30]});
+}
+
+function drawGasStations(list){
+  list.slice(0,30).forEach(gs=>{
+    L.circleMarker([gs.lat,gs.lng],{radius:5,color:'#f59e0b',fillOpacity:0.8}).addTo(map)
+      .bindPopup(`${gs.brand}<br>Petrol ₹${gs.prices.petrol}`);
+  });
+}
+
+async function planRoute(){
+  const start=document.getElementById('start').value;
+  const end=document.getElementById('end').value;
+  const mode=document.getElementById('mode').value;
+  const avoidTolls=document.getElementById('avoidTolls').checked;
+  const avoidHighways=document.getElementById('avoidHighways').checked;
+  setStatus('Calculating...',true);
+  try{
+    const res=await fetch('/api/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start,end,mode,avoid_tolls:avoidTolls,avoid_highways:avoidHighways})});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||res.statusText);
+    document.getElementById('statDistance').textContent=data.distance;
+    document.getElementById('statEta').textContent=data.estimated_time_mins;
+    document.getElementById('statCost').textContent=data.estimated_cost;
+    document.getElementById('statCO2').textContent=data.carbon_emission;
+    drawRoute(data.coordinates);
+    drawGasStations(data.gas_stations||[]);
+    setStatus('Route ready',true);
+  }catch(err){
+    setStatus(err.message,false);
+  }
+}
+
+function clearTraffic(){
+  if(trafficLayer){ map.removeLayer(trafficLayer); trafficLayer=null; }
+}
+
+async function loadTraffic(){
+  clearTraffic();
+  const msg=document.getElementById('trafficMsg');
+  msg.textContent='Loading...';
+  try{
+    const res=await fetch('/api/traffic');
+    if(!res.ok) throw new Error('Traffic error');
+    const data=await res.json();
+    const lines=data.map(seg=>{
+      return L.polyline([[seg.from.lat,seg.from.lng],[seg.to.lat,seg.to.lng]],{color:seg.level==='red'?'#ef4444':seg.level==='orange'?'#f59e0b':'#10b981',weight:3,opacity:0.8});
+    });
+    trafficLayer=L.layerGroup(lines).addTo(map);
+    msg.textContent=`Loaded ${data.length} segments`;
+    document.getElementById('trafficList').textContent=data.slice(0,50).map(s=>`${s.route_name}: ${s.level}`).join('\n');
+  }catch(err){
+    msg.textContent=err.message;
+  }
+}
+
+async function getWeather(){
+  const city=document.getElementById('city').value.trim();
+  const out=document.getElementById('weatherOut');
+  out.textContent='Loading...';
+  try{
+    const res=await fetch(`/api/weather/${city}`);
+    if(!res.ok) throw new Error(res.status+' '+res.statusText);
+    const data=await res.json();
+    out.textContent=JSON.stringify(data,null,2);
+  }catch(err){ out.textContent='Error: '+err.message; }
+}
+
+window.addEventListener('DOMContentLoaded', async ()=>{
+  initMap();
+  await loadCities();
+  await loadTraffic();
+  document.getElementById('plan').onclick=planRoute;
+  document.getElementById('getWeather').onclick=getWeather;
+  document.getElementById('refreshTraffic').onclick=loadTraffic;
+  planRoute();
+  getWeather();
+});
+</script>
+</body>
+</html>

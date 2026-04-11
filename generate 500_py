@@ -1,0 +1,165 @@
+import random
+import json
+import math
+
+# We will generate 500 fake/real mixed cities bounding India
+cities_list = []
+base_names = ["Nagar", "Pur", "Pura", "Ganj", "Bagh", "Vihar", "Khand", "Dham", "Halli", "Palya", "Giri", "Konda"]
+prefixes = ["Sri", "Nava", "Raja", "Shiva", "Rama", "Brahma", "Ananda", "Deva", "Vishnu", "Maha"]
+
+# Use the original 50 from generate_cities.py + 450 generated ones
+original_cities = [
+    # Tier 1
+    {"id": "delhi", "name": "New Delhi", "lat": 28.6139, "lng": 77.2090, "tier": 1},
+    {"id": "mumbai", "name": "Mumbai", "lat": 19.0760, "lng": 72.8777, "tier": 1},
+    {"id": "bangalore", "name": "Bangalore", "lat": 12.9716, "lng": 77.5946, "tier": 1},
+    {"id": "chennai", "name": "Chennai", "lat": 13.0827, "lng": 80.2707, "tier": 1},
+    {"id": "kolkata", "name": "Kolkata", "lat": 22.5726, "lng": 88.3639, "tier": 1},
+    {"id": "hyderabad", "name": "Hyderabad", "lat": 17.3850, "lng": 78.4867, "tier": 1},
+    {"id": "pune", "name": "Pune", "lat": 18.5204, "lng": 73.8567, "tier": 1},
+    {"id": "ahmedabad", "name": "Ahmedabad", "lat": 23.0225, "lng": 72.5714, "tier": 1},
+    
+    # North
+    {"id": "jaipur", "name": "Jaipur", "lat": 26.9124, "lng": 75.7873, "tier": 2},
+    {"id": "lucknow", "name": "Lucknow", "lat": 26.8467, "lng": 80.9462, "tier": 2},
+    {"id": "kanpur", "name": "Kanpur", "lat": 26.4499, "lng": 80.3319, "tier": 2},
+    {"id": "agra", "name": "Agra", "lat": 27.1767, "lng": 78.0081, "tier": 2},
+    {"id": "varanasi", "name": "Varanasi", "lat": 25.3176, "lng": 82.9739, "tier": 2},
+    {"id": "amritsar", "name": "Amritsar", "lat": 31.6340, "lng": 74.8723, "tier": 2},
+    {"id": "allahabad", "name": "Prayagraj", "lat": 25.4358, "lng": 81.8463, "tier": 2},
+    {"id": "chandigarh", "name": "Chandigarh", "lat": 30.7333, "lng": 76.7794, "tier": 2},
+    {"id": "dehradun", "name": "Dehradun", "lat": 30.3165, "lng": 78.0322, "tier": 2},
+    {"id": "jammu", "name": "Jammu", "lat": 32.7266, "lng": 74.8570, "tier": 2},
+    {"id": "srinagar", "name": "Srinagar", "lat": 34.0837, "lng": 74.7973, "tier": 2},
+    {"id": "jodhpur", "name": "Jodhpur", "lat": 26.2389, "lng": 73.0243, "tier": 2},
+    {"id": "udaipur", "name": "Udaipur", "lat": 24.5854, "lng": 73.7125, "tier": 3},
+    {"id": "meerut", "name": "Meerut", "lat": 28.9845, "lng": 77.7064, "tier": 3},
+    
+    # West
+    {"id": "surat", "name": "Surat", "lat": 21.1702, "lng": 72.8311, "tier": 2},
+    {"id": "vadodara", "name": "Vadodara", "lat": 22.3072, "lng": 73.1812, "tier": 2},
+    {"id": "nashik", "name": "Nashik", "lat": 20.0110, "lng": 73.7903, "tier": 2},
+    {"id": "rajkot", "name": "Rajkot", "lat": 22.3039, "lng": 70.8022, "tier": 3},
+    {"id": "aurangabad", "name": "Aurangabad", "lat": 19.8762, "lng": 75.3433, "tier": 3},
+    
+    # Central
+    {"id": "nagpur", "name": "Nagpur", "lat": 21.1458, "lng": 79.0882, "tier": 2},
+    {"id": "indore", "name": "Indore", "lat": 22.7196, "lng": 75.8577, "tier": 2},
+    {"id": "bhopal", "name": "Bhopal", "lat": 23.2599, "lng": 77.4126, "tier": 2},
+    {"id": "gwalior", "name": "Gwalior", "lat": 26.2124, "lng": 78.1772, "tier": 3},
+    {"id": "raipur", "name": "Raipur", "lat": 21.2514, "lng": 81.6296, "tier": 2},
+    {"id": "jabalpur", "name": "Jabalpur", "lat": 23.1815, "lng": 79.9864, "tier": 2},
+    
+    # South
+    {"id": "coimbatore", "name": "Coimbatore", "lat": 11.0168, "lng": 76.9558, "tier": 2},
+    {"id": "vijayawada", "name": "Vijayawada", "lat": 16.5062, "lng": 80.6480, "tier": 2},
+    {"id": "madurai", "name": "Madurai", "lat": 9.9252, "lng": 78.1198, "tier": 2},
+    {"id": "kochi", "name": "Kochi", "lat": 9.9312, "lng": 76.2673, "tier": 2},
+    {"id": "mysore", "name": "Mysore", "lat": 12.2958, "lng": 76.6394, "tier": 3},
+    {"id": "thiruvananthapuram", "name": "Thiruvananthapuram", "lat": 8.5241, "lng": 76.9366, "tier": 2},
+    {"id": "visakhapatnam", "name": "Visakhapatnam", "lat": 17.6868, "lng": 83.2185, "tier": 2},
+    {"id": "tiruchirappalli", "name": "Tiruchirappalli", "lat": 10.7905, "lng": 78.7047, "tier": 3},
+    {"id": "hubli", "name": "Hubli", "lat": 15.3647, "lng": 75.1240, "tier": 3},
+    {"id": "mangalore", "name": "Mangalore", "lat": 12.9141, "lng": 74.8560, "tier": 3},
+    
+    # East
+    {"id": "patna", "name": "Patna", "lat": 25.5941, "lng": 85.1376, "tier": 2},
+    {"id": "ranchi", "name": "Ranchi", "lat": 23.3441, "lng": 85.3096, "tier": 2},
+    {"id": "bhubaneswar", "name": "Bhubaneswar", "lat": 20.2961, "lng": 85.8245, "tier": 2},
+    {"id": "guwahati", "name": "Guwahati", "lat": 26.1445, "lng": 91.7362, "tier": 2},
+    {"id": "jamshedpur", "name": "Jamshedpur", "lat": 22.8046, "lng": 86.2029, "tier": 3},
+    {"id": "dhanbad", "name": "Dhanbad", "lat": 23.7957, "lng": 86.4304, "tier": 3},
+    {"id": "asansol", "name": "Asansol", "lat": 23.6739, "lng": 86.9524, "tier": 3},
+    {"id": "siliguri", "name": "Siliguri", "lat": 26.7271, "lng": 88.3953, "tier": 3},
+]
+
+cities_list.extend(original_cities)
+random.seed(123)
+for i in range(500 - len(original_cities)):
+    name = random.choice(prefixes) + random.choice(base_names)
+    lat = round(random.uniform(9.0, 32.0), 4)
+    lng = round(random.uniform(70.0, 88.0), 4)
+    cities_list.append({
+        "id": name.lower() + "_" + str(i),
+        "name": name,
+        "lat": lat,
+        "lng": lng,
+        "tier": random.choice([2, 3, 3, 3])
+    })
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371  # kilometers
+    dLat = math.radians(lat2 - lat1)
+    dLon = math.radians(lon2 - lon1)
+    lat1 = math.radians(lat1)
+    lat2 = math.radians(lat2)
+    a = math.sin(dLat/2) * math.sin(dLat/2) + \
+        math.sin(dLon/2) * math.sin(dLon/2) * math.cos(lat1) * math.cos(lat2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return int(R * c)
+
+edges = []
+for i in range(len(cities_list)):
+    for j in range(i+1, len(cities_list)):
+        d = haversine(cities_list[i]["lat"], cities_list[i]["lng"], cities_list[j]["lat"], cities_list[j]["lng"])
+        if d > 0 and d < 3000:
+            edges.append((cities_list[i]["id"], cities_list[j]["id"], d))
+
+edges.sort(key=lambda x: x[2])
+
+mst_edges = []
+uf = {c["id"]: c["id"] for c in cities_list}
+def find(x):
+    if uf[x] != x:
+        uf[x] = find(uf[x])
+    return uf[x]
+
+def union(x, y):
+    root_x = find(x)
+    root_y = find(y)
+    if root_x != root_y:
+        uf[root_x] = root_y
+        return True
+    return False
+
+for u, v, d in edges:
+    if union(u, v):
+        mst_edges.append((u, v, d))
+
+# Connectivity
+adj = {c["id"]: [] for c in cities_list}
+for u, v, d in mst_edges:
+    adj[u].append((v, d))
+    adj[v].append((u, d))
+
+# Add some nearest neighbors for redundancy
+for c in cities_list:
+    neighbors = []
+    for c2 in cities_list:
+        if c != c2:
+            d = haversine(c["lat"], c["lng"], c2["lat"], c2["lng"])
+            if d > 0:
+                neighbors.append((c2["id"], d))
+    neighbors.sort(key=lambda x: x[1])
+    # Add top 4 closest
+    for v, d in neighbors[:4]:
+        adj[c["id"]].append((v, d))
+        adj[v].append((c["id"], d))
+
+routes = {}
+random.seed(42)
+for u in adj:
+    routes[u] = {}
+    for v, dist in adj[u]:
+        if v not in routes[u]: 
+            name = "NH " + str(random.randint(10, 200))
+            speed_limit = random.randint(80, 100)
+            if dist > 600:
+                name += " Expressway"
+                speed_limit = random.randint(110, 120)
+            routes[u][v] = {"dist": dist, "cap": random.randint(3000, 9000), "name": name, "speed_limit": speed_limit}
+
+with open("graph_data.py", "w", encoding='utf-8') as f:
+    f.write(f"CITIES = {json.dumps(cities_list, indent=4)}\n\n")
+    f.write(f"ROUTES = {json.dumps(routes, indent=4)}\n")
+print(f"Generated graph_data.py with {len(cities_list)} cities.")
